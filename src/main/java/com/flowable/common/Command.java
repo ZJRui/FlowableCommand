@@ -1,7 +1,10 @@
 package com.flowable.common;
 
+import com.flowable.common.cfg.CommandContext;
+
 public interface Command<T>{
 
-    T execute();
+    T execute(CommandContext commandContext);
+
 }
 

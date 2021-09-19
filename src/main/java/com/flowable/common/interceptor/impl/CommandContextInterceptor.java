@@ -100,8 +100,8 @@ public class CommandContextInterceptor extends AbstractCommandInterceptor {
         }
         try {
             /**
-             *将CommandContext放入到线程栈中
-             *
+             *将CommandContext放入到线程栈中,从这里我们看出来不管该CommandContext是新创建的还是复用了当前线程中的CommandContext，这里都会
+             * 将这个CommandContext再次设置到线程中
              */
             Context.setCommandContext(commandContext);
             return next.execute(config, command, commandExecutor);
@@ -141,6 +141,16 @@ public class CommandContextInterceptor extends AbstractCommandInterceptor {
          *如果需要，重新抛出异常
          * 如果context是被重用的，  即便上面的finally中使用了Context.removeCommandContext,
          * 该contextCommand仍然存在于当前线程中，因为该CommandContext在之前的Interceptor中会被设置到线程中一次
+         *
+         * 问题：为什么这里需要判断contextReused？
+         * 首先我们要明白，上面的try中如果 next.execute 出现了异常，将会导致执行catch，这个异常被catch住并放入到了CommandContext中，后面的finally中
+         * 并没有处理这个异常，然后会执行到这个地方。  如果contextReused为true，表示当前Interceptor复用了线程中的CommandContext，为了不影响该CommandContext的实际
+         * 所属Interceptor，这里需要对CommandContext中的exception进行清空处理。也就是下面的首先拿到exception，然后reset，那么当前Interceptor如何处理这个异常呢？
+         * 直接转为FlowableException抛出。
+         *
+         * 如果ComandContext不是复用的 也就是contextReused为false，这个时候如果执行next.execute 出现了异常，将会导致下面执行return null
+         *
+         *
          */
         if (contextReused && commandContext.getException() != null) {
             /**
@@ -162,7 +172,6 @@ public class CommandContextInterceptor extends AbstractCommandInterceptor {
             }else {
                 throw new FlowableException();
             }
-
 
         }
         return null;

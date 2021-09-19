@@ -51,6 +51,11 @@ public class SpringTransactionInterceptor  extends AbstractCommandInterceptor {
              * 不不存在事务，则按照事务的要求级别 进行
              */
             TransactionTemplate transactionTemplate=new TransactionTemplate(transactionManager);
+            /**
+             *
+             * 设置事务的传播行为：在Spring中，当一个方法调用另外一个方法时，可以让事务采取不同的策略工作，如新建事务或者挂起当前事务等，这便是事务的传播行为。
+             *
+             */
             transactionTemplate.setPropagationBehavior(getPropagation(config));
             T result = transactionTemplate.execute(new TransactionCallback<T>() {
                 @Override

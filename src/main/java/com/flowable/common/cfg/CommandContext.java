@@ -1,33 +1,49 @@
 package com.flowable.common.cfg;
 
 import com.flowable.common.Command;
+import com.flowable.common.exception.FlowableException;
 import com.flowable.common.executor.CommandExecutor;
 import com.flowable.common.session.Session;
 import com.flowable.common.session.SessionFactory;
 import lombok.Data;
 import org.apache.poi.ss.formula.functions.T;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Data
 public class CommandContext {
 
 
     protected Command<?> command;
-    protected Map<Class<?>, SessionFactory> sessionFactories;
-    protected Map<Class<?>, Session> sessions = new HashMap<>();
-
-    protected Throwable exception;
+    /**
+     * 虽然创建CommandContext只需要CommandConfig，在CommandContextInterceptor中，在创建CommandContext之后
+     * 会调用   commandContext.setCommandExecutor(commandExecutor); 将CommandExecutor设置给CommandContext
+     *
+     */
     protected CommandExecutor commandExecutor;
 
+    protected Map<Class<?>, Session> sessions = new HashMap<>();
+
+
+    protected Throwable exception;
     protected ClassLoader classLoader;
     protected boolean useClassForNameClassLoading;
-
     protected boolean reused;
 
+
     protected List<CommandContextCloseListener> closeListeners;
+    /**
+     *
+     */
+    protected LinkedList<Object> resultStack=new LinkedList<>();
+
+    // General-purpose storing of anything during the lifetime of a command context
+    /**
+     * //在命令上下文的生命周期内通用存储任何内容
+     */
+    protected Map<String, Object> attributes = new HashMap<>();
+
+
 
 
     public CommandContext(Command<?> cmd) {
@@ -49,7 +65,7 @@ public class CommandContext {
             exception(throwable);
         }
         if (exception != null) {
-
+            rethrowExceptionIfNeeded();
         }
 
 
@@ -66,7 +82,7 @@ public class CommandContext {
         } else if (exception instanceof RuntimeException) {
             throw (RuntimeException) exception;
         }else {
-           // throw new FlowableException("exception while executing command " + command, exception);
+            throw new FlowableException();
         }
     }
 
@@ -187,5 +203,54 @@ public class CommandContext {
         }
 
     }
+
+    public void addCloseListener(CommandContextCloseListener commandContextCloseListener) {
+        if (closeListeners == null) {
+            closeListeners = new ArrayList<>();
+        }
+        if (!commandContextCloseListener.multipleAllowed()) {
+            for (CommandContextCloseListener closeListener : closeListeners) {
+                if (closeListener.getClass().equals(commandContextCloseListener.getClass())) {
+                    return;
+                }
+            }
+        }
+        closeListeners.add(commandContextCloseListener);
+        closeListeners.sort(Comparator.comparing(CommandContextCloseListener::order));
+
+    }
+
+    public void setResult(Object result) {
+        resultStack.add(result);
+    }
+    public Object getResult(){
+        return resultStack.pollLast();
+    }
+
+
+    public void addAttribute(String key, Object value) {
+        if (attributes == null) {
+            attributes = new HashMap<>(1);
+        }
+        attributes.put(key, value);
+    }
+
+    public Object getAttribute(String key) {
+        if (attributes != null) {
+            return attributes.get(key);
+        }
+        return null;
+    }
+
+    public void removeAttribute(String key) {
+        if (attributes != null) {
+            attributes.remove(key);
+
+            if (attributes.isEmpty()) {
+                attributes = null;
+            }
+        }
+    }
+
 }
 
